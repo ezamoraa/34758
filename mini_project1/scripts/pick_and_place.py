@@ -9,11 +9,36 @@ import moveit_msgs.msg
 import geometry_msgs.msg
 import math
 
+from gazebo_msgs.msg import ModelStates
 from mini_project1 import move
 
+
+def get_cubes_pose(model_states, cube_name_prefix="cube"):
+  # Get model_states indexes for all the cubes
+  cube_i = [
+      i for i, name in enumerate(model_states.name)
+      if cube_name_prefix in name
+  ]
+  assert len(cube_i) > 0, "Failed to get cubes pose from Gazebo"
+
+  # Generate a dictionary with the cube poses (key=name, value=pose)
+  cubes_pose = {
+    model_states.name[i] : model_states.pose[i]
+    for i in cube_i
+  }
+  return cubes_pose
+
+def get_bucket_pose(model_states, bucket_name="bucket"):
+  for name, pose in zip(model_states.name, model_states.pose):
+    if name == bucket_name:
+      return pose
+  else:
+    raise AssertionError("Failed to get bucket pose from Gazebo")
+
+
 def main():
-  log_lvl=rospy.INFO
-  # log_lvl=rospy.DEBUG
+  # log_lvl=rospy.INFO
+  log_lvl=rospy.DEBUG
 
   moveit_commander.roscpp_initialize(sys.argv)
   rospy.init_node('pick_and_place', anonymous=True, log_level=log_lvl)
@@ -22,46 +47,32 @@ def main():
   scene = moveit_commander.PlanningSceneInterface()
   group = moveit_commander.MoveGroupCommander("Arm")
 
-  ## trajectories for RVIZ to visualize.
-  display_trajectory_publisher = rospy.Publisher(
-                                      '/move_group/display_planned_path',
-                                      moveit_msgs.msg.DisplayTrajectory)
-
-  ## Sometimes for debugging it is useful to print the entire state of the
-  ## robot.
   rospy.logdebug(robot.get_current_state())
 
-  ## Let's setup the planner
-  #group.set_planning_time(0.0)
-  group.set_goal_orientation_tolerance(0.01)
-  group.set_goal_tolerance(0.01)
-  group.set_goal_joint_tolerance(0.01)
-  group.set_num_planning_attempts(100)
-  group.set_max_velocity_scaling_factor(1.0)
-  group.set_max_acceleration_scaling_factor(1.0)
+  move.setup_group(group)
 
+  model_states = rospy.wait_for_message("gazebo/model_states", ModelStates, 10)
+  cubes_pose = get_cubes_pose(model_states)
+  bucket_pose = get_bucket_pose(model_states)
 
-  pose_goal = group.get_current_pose().pose
-  pose_goal.position.x = 0.4
-  pose_goal.position.y = 0
-  pose_goal.position.z = 0.95
-  print(pose_goal)
+  cube_names = list(cubes_pose.keys())
 
-  ## second movement
-  pose_goal2 = group.get_current_pose().pose
-  pose_goal2.position.x = 0.3
-  pose_goal2.position.y = -0.2
-  pose_goal2.position.z = 0.95
-  print(pose_goal2)
+  # Pick and place all cubes found
+  for cube_name in cube_names:
+    rospy.logdebug("PICK AND PLACE CUBE [{}]".format(cube_name))
+    move.move_pick_and_place_cube(robot, group, cubes_pose[cube_name], bucket_pose)
 
-  move.move_pickup_drop_cube(robot, group, pose_goal, pose_goal2)
+    # Update poses just in case something changed
+    model_states = rospy.wait_for_message("gazebo/model_states", ModelStates, 10)
+    cubes_pose = get_cubes_pose(model_states)
+    bucket_pose = get_bucket_pose(model_states)
 
   moveit_commander.roscpp_shutdown()
 
-  print("============ STOPPING")
-  R = rospy.Rate(10)
-  while not rospy.is_shutdown():
-    R.sleep()
+  # print("============ STOPPING")
+  # R = rospy.Rate(10)
+  # while not rospy.is_shutdown():
+  #   R.sleep()
 
 
 if __name__=='__main__':
