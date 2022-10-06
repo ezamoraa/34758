@@ -7,7 +7,7 @@ import moveit_commander
 import moveit_msgs.msg
 import geometry_msgs.msg
 import math
- 
+
 from std_msgs.msg import String
 from sensor_msgs.msg import JointState
 
@@ -21,15 +21,15 @@ def get_pose_euler_angles(pose):
 def setup_group(group):
   ## Let's setup the planner
   #group.set_planning_time(0.0)
-  group.set_goal_orientation_tolerance(0.01)
-  group.set_goal_tolerance(0.01)
-  group.set_goal_joint_tolerance(0.01)
+  group.set_goal_orientation_tolerance(0.02)
+  group.set_goal_tolerance(0.02)
+  group.set_goal_joint_tolerance(0.02)
   group.set_num_planning_attempts(100)
   group.set_max_velocity_scaling_factor(1.0)
   group.set_max_acceleration_scaling_factor(1.0)
 
 
-def set_gripper_close_percent(percent, wait_after_s=1):
+def set_gripper_close_percent(percent, wait_after_s=0.5):
 
   joint_pub = rospy.Publisher("/jaco/joint_control", JointState, queue_size=1)
  
@@ -46,7 +46,7 @@ def set_gripper_close_percent(percent, wait_after_s=1):
   )
 
   rate = rospy.Rate(10) # 10hz
-  for i in range(5):
+  for i in range(3):
     joint_pub.publish(currentJointState)
     rate.sleep()
 
@@ -62,17 +62,7 @@ def move_group_cartesian_path(robot, group, poses):
                                       0.01,        # eef_step
                                       0.0)         # jump_threshold
  
-  ## You can ask RVIZ to visualize a plan (aka trajectory) for you.
-  display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-  display_trajectory.trajectory_start = robot.get_current_state()
-  display_trajectory.trajectory.append(plan)
-
-  display_trajectory_publisher = rospy.Publisher(
-                                      '/move_group/display_planned_path',
-                                      moveit_msgs.msg.DisplayTrajectory)
-
-  display_trajectory_publisher.publish(display_trajectory);
-  rospy.sleep(0.5)
+  rospy.sleep(2)
 
   ## Moving to a pose goal
   group.execute(plan,wait=True)
@@ -80,7 +70,18 @@ def move_group_cartesian_path(robot, group, poses):
   #rospy.sleep(4.)
 
 
-def move_pick_and_place_cube(robot, group, pose_cube, pose_bucket, h_above_cube=0.3, h_bucket=0.5):
+def move_pose_target(robot, group, pose):
+
+  group.set_pose_target(pose)
+
+  ## Now, we call the planner to compute the plan
+  plan1 = group.plan()
+
+  ## Moving to a pose goal
+  group.go(wait=True)
+
+
+def move_pick_and_place_cube(robot, group, pose_cube, pose_bucket, h_above_cube=0.25, h_bucket=0.5):
   
   h_limb = 0.05   # Adding extra height due to the limb height (fingers)
 
@@ -94,7 +95,8 @@ def move_pick_and_place_cube(robot, group, pose_cube, pose_bucket, h_above_cube=
   pose_above_cube.position.z += (h_above_cube + h_limb)
   
   rospy.logdebug("move above cube")
-  move_group_cartesian_path(robot, group, [pose_above_cube])
+  move_pose_target(robot, group, pose_above_cube)
+  move_group_cartesian_path(robot, group, [pose_at_cube])
 
   rospy.logdebug("open gripper above cube")
   set_gripper_close_percent(40)
@@ -159,9 +161,9 @@ def main():
   print(pose_goal)
 
   pose_goal2 = group.get_current_pose().pose
-  pose_goal2.position.x = 0.3
+  pose_goal2.position.x = 0.2
   pose_goal2.position.y = -0.2
-  pose_goal2.position.z = 0.95
+  pose_goal2.position.z = 0.1
   print(pose_goal2)
 
   move_pick_and_place_cube(robot, group, pose_goal, pose_goal2)
