@@ -1,0 +1,36 @@
+{
+  "configurations": [
+    {
+      "browse": {
+        "databaseFilename": "${default}",
+        "limitSymbolsToIncludedHeaders": false
+      },
+      "includePath": [
+        "/home/steven/catkin_ws/devel/include/**",
+        "/opt/ros/melodic/include/**",
+        "/home/steven/catkin_ws/src/convenience-pkgs/arm_components_name_manager/include/**",
+        "/home/steven/catkin_ws/src/convenience-pkgs/baselib_binding/include/**",
+        "/home/steven/catkin_ws/src/convenience-pkgs/convenience_math_functions/include/**",
+        "/home/steven/catkin_ws/src/convenience-pkgs/convenience_ros_functions/include/**",
+        "/home/steven/catkin_ws/src/gazebo-pkgs/gazebo_grasp_plugin/include/**",
+        "/home/steven/catkin_ws/src/joint-control-pkgs/gazebo_joint_control/include/**",
+        "/home/steven/catkin_ws/src/gazebo-pkgs/gazebo_state_plugins/include/**",
+        "/home/steven/catkin_ws/src/gazebo-pkgs/gazebo_test_tools/include/**",
+        "/home/steven/catkin_ws/src/gazebo-pkgs/gazebo_version_helpers/include/**",
+        "/home/steven/catkin_ws/src/gazebo-pkgs/gazebo_world_plugin_loader/include/**",
+        "/home/steven/catkin_ws/src/hello_ros/include/**",
+        "/home/steven/catkin_ws/src/jaco-arm-pkgs/jaco_arm/jaco_joints/include/**",
+        "/home/steven/catkin_ws/src/joint-control-pkgs/joint_trajectory_execution/include/**",
+        "/home/steven/catkin_ws/src/convenience-pkgs/logger_binding/include/**",
+        "/home/steven/catkin_ws/src/general-message-pkgs/object_msgs_tools/include/**",
+        "/usr/include/**"
+      ],
+      "name": "ROS",
+      "intelliSenseMode": "gcc-x64",
+      "compilerPath": "/usr/bin/gcc",
+      "cStandard": "gnu11",
+      "cppStandard": "c++14"
+    }
+  ],
+  "version": 4
+}
