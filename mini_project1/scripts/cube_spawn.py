@@ -52,12 +52,10 @@ def main():
         if spawn_not_delete:
             x0 = 0.35
             y0 = 0.2
-            circle_r = 0.25
+            circle_r = 0.20
             alpha_x = 2 * math.pi * random.random()
             alpha_y = 2 * math.pi * random.random()
             r = circle_r * math.sqrt(random.random())
-            # pose_x = random.uniform(0,0.5) + x0
-            # pose_y = random.uniform(0,0.4) + y0
             pose_x = r * math.cos(alpha_x) + x0
             pose_y = r * math.cos(alpha_y) + y0
             pose_z = 0.9

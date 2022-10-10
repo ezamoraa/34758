@@ -96,7 +96,7 @@ def move_pick_and_place_cube(robot, group, pose_cube, pose_bucket, h_above_cube=
   
   rospy.logdebug("move above cube")
   move_pose_target(robot, group, pose_above_cube)
-  move_group_cartesian_path(robot, group, [pose_at_cube])
+  move_group_cartesian_path(robot, group, [pose_above_cube])
 
   rospy.logdebug("open gripper above cube")
   set_gripper_close_percent(40)
@@ -117,67 +117,9 @@ def move_pick_and_place_cube(robot, group, pose_cube, pose_bucket, h_above_cube=
   pose_above_bucket.position.z += (h_bucket + h_limb)
 
   rospy.logdebug("move to bucket")
-  move_group_cartesian_path(robot, group, [pose_above_cube, pose_above_bucket])
+  move_group_cartesian_path(robot, group, [pose_above_cube])
+  move_pose_target(robot, group, pose_above_bucket)
+  # move_group_cartesian_path(robot, group, [pose_above_cube, pose_above_bucket])
 
   rospy.logdebug("open gripper drop cube")
   set_gripper_close_percent(0)
-
-
-def main():
-  ## First initialize moveit_commander and rospy.
-  moveit_commander.roscpp_initialize(sys.argv)
-  rospy.init_node('move_group_python_interface_tutorial',
-                  anonymous=True)
-
-  robot = moveit_commander.RobotCommander()
-  scene = moveit_commander.PlanningSceneInterface()
-  group = moveit_commander.MoveGroupCommander("Arm")
-
-  ## trajectories for RVIZ to visualize.
-  display_trajectory_publisher = rospy.Publisher(
-                                      '/move_group/display_planned_path',
-                                      moveit_msgs.msg.DisplayTrajectory)
-
-  ## Sometimes for debugging it is useful to print the entire state of the
-  ## robot.
-  print("============ Printing robot state")
-  print(robot.get_current_state())
-  print("============")
-
-  ## Let's setup the planner
-  #group.set_planning_time(0.0)
-  group.set_goal_orientation_tolerance(0.01)
-  group.set_goal_tolerance(0.01)
-  group.set_goal_joint_tolerance(0.01)
-  group.set_num_planning_attempts(100)
-  group.set_max_velocity_scaling_factor(1.0)
-  group.set_max_acceleration_scaling_factor(1.0)
-
-
-  pose_goal = group.get_current_pose().pose
-  pose_goal.position.x = 0.4
-  pose_goal.position.y = 0
-  pose_goal.position.z = 0.95
-  print(pose_goal)
-
-  pose_goal2 = group.get_current_pose().pose
-  pose_goal2.position.x = 0.2
-  pose_goal2.position.y = -0.2
-  pose_goal2.position.z = 0.1
-  print(pose_goal2)
-
-  move_pick_and_place_cube(robot, group, pose_goal, pose_goal2)
-
-  moveit_commander.roscpp_shutdown()
-
-  print("============ STOPPING")
-  R = rospy.Rate(10)
-  while not rospy.is_shutdown():
-    R.sleep()
-
-
-if __name__=='__main__':
-  try:
-    main()
-  except rospy.ROSInterruptException:
-    pass
