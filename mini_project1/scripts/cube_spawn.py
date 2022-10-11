@@ -5,6 +5,7 @@ import tf_conversions
 from gazebo_msgs.srv import DeleteModel, SpawnModel
 from geometry_msgs.msg import *
 from argparse import ArgumentParser
+import math
 
 
 def parse_args(argv=None):
@@ -49,7 +50,16 @@ def main():
     for num in range(num_of_cubes):
         item_name = "cube{}".format(num)
         if spawn_not_delete:
-            item_pose = Pose(Point(x=random.uniform(0,0.5), y=random.uniform(0,0.5), z=1), orient)
+            x0 = 0.35
+            y0 = 0.2
+            circle_r = 0.20
+            alpha_x = 2 * math.pi * random.random()
+            alpha_y = 2 * math.pi * random.random()
+            r = circle_r * math.sqrt(random.random())
+            pose_x = r * math.cos(alpha_x) + x0
+            pose_y = r * math.cos(alpha_y) + y0
+            pose_z = 0.9
+            item_pose = Pose(Point(x=pose_x, y=pose_y, z=pose_z), orient)
             spawn_item(item_name, item_pose, "urdf/cube.urdf")
         else:
             delete_model(item_name)

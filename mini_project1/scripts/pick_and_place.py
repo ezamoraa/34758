@@ -56,7 +56,7 @@ def main():
   bucket_pose = get_bucket_pose(model_states)
 
   cube_names = list(cubes_pose.keys())
-
+  
   # Pick and place all cubes found
   for cube_name in cube_names:
     rospy.logdebug("PICK AND PLACE CUBE [{}]".format(cube_name))
