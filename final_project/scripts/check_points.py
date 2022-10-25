@@ -13,17 +13,20 @@ waypoints = [
  
  
 def goal_pose(pose):  
-    goal_pose = MoveBaseGoal()
-    goal_pose.target_pose.header.frame_id = 'map'
-    goal_pose.target_pose.pose.position.x = pose[0][0]
-    goal_pose.target_pose.pose.position.y = pose[0][1]
-    goal_pose.target_pose.pose.position.z = pose[0][2]
-    goal_pose.target_pose.pose.orientation.x = pose[1][0]
-    goal_pose.target_pose.pose.orientation.y = pose[1][1]
-    goal_pose.target_pose.pose.orientation.z = pose[1][2]
-    goal_pose.target_pose.pose.orientation.w = pose[1][3]
+    goal_pose_orient = MoveBaseGoal()
+    
+    
+    goal_pose_orient.target_pose.header.frame_id = 'map' 
+
+    # Goal pose
+    gp = goal_pose_orient.target_pose.pose.position
+    gp.x, gp.y, gp.z = pose[0]
+
+    # Goal orientation
+    orient = goal_pose_orient.target_pose.pose.orientation
+    orient.x, orient.y, orient.z, orient.w = pose[1]
  
-    return goal_pose
+    return goal_pose_orient
  
  
 if __name__ == '__main__':
