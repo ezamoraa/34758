@@ -4,6 +4,8 @@ import rospy
 import actionlib
  
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from std_msgs.msg import Int8
+
  
  
 waypoints = [  
@@ -28,16 +30,41 @@ def goal_pose(pose):
  
     return goal_pose_orient
  
+
+def callback(msg):
+
+    if msg.data == 3:
+        QR_status = not(QR_status)
+        print("Found QR code")
+
+
+    return QR_status
+
+def QR_listener():
+    rospy.init_node('QR_status_listener', anonymous=True)
+    msg = rospy.Subscriber('visp_auto_tracker/status', Int8, callback, queue_size=1000)
+
+
  
 if __name__ == '__main__':
     rospy.init_node('patrol')
  
     client = actionlib.SimpleActionClient('move_base', MoveBaseAction) 
     client.wait_for_server()
-   
-    while True:
-        for pose in waypoints:   
-            goal = goal_pose(pose)
-            client.send_goal(goal)
-            client.wait_for_result()
-            rospy.sleep(3)
+
+    for pose in waypoints:
+        
+        goal = goal_pose(pose)
+        client.send_goal(goal)
+
+        QR_status = False
+        while not client.get_goal_status_text() == "Goal reached." and not rospy.is_shutdown():
+            QR_listener()
+            
+            rospy.sleep(0.2)
+        
+        print("Goal reached")
+        print("Next waypoint")
+        
+
+        rospy.sleep(3)
