@@ -6,6 +6,7 @@ import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import Int8
 
+#asdasdas
  
  
 waypoints = [  
