@@ -8,9 +8,13 @@ def callback(msg):
 
 def QR_listener():
     rospy.init_node('QR_status_listener', anonymous=True)
-    rospy.Subscriber('visp_auto_tracker/status', Int8, callback, queue_size=1000)
+    msg = rospy.Subscriber('visp_auto_tracker/status', Int8, queue_size=1000)
+    callback(msg.data)
+    
     rospy.spin()
 
+def main():
+    QR_listener()
 
 if __name__ == '__main__':
-    QR_listener()
+    main()
