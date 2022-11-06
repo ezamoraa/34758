@@ -3,7 +3,7 @@
 import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from std_msgs.msg import Int8
+from std_msgs.msg import Int8, String
 
 
 
@@ -24,35 +24,66 @@ class GoToWaypoint(object):
         self.orient = self.goal_pose_orient.target_pose.pose.orientation
         self.orient.x, self.orient.y, self.orient.z, self.orient.w = self.pose[1]
 
-        self.QR_status = False
 
-
-    def callback(self, msg):
-        if msg.data == 3:
-            self.QR_status = not self.QR_status
-            print("Found QR code")
+    def check_status(self,n=1):
         
+        for _ in range(n):
+            msg = rospy.wait_for_message('visp_auto_tracker/status', Int8, 3)
 
-    def QR_listerner(self):
-        rospy.Subscriber('visp_auto_tracker/status', Int8, self.callback, queue_size=10)
+            if msg == None:
+                return False
+            elif msg.data not in [3,4]:
+                return False
+
+        return True, msg
 
 
-    def main(self):
+    def execute2(self):
         self.client.send_goal(self.goal_pose_orient)
-        
-        while not self.client.get_goal_status_text() == "Goal reached." and not rospy.is_shutdown():
-            self.QR_listerner()
-            if self.QR_status == True:
-                break
 
-            rospy.sleep(0.2)
+        while not rospy.is_shutdown():
+            
+            status = self.check_status()
+            if status == True:
+                self.client.cancel_goal()
+                print(status[1])
+                return True
 
-        return self.QR_status
+
+            elif self.client.get_goal_status_text() == "Goal reached.":
+                return False
+
+        return False  
+
+    def execute(self):
 
 
-if __name__ == '__main__':
+        self.client.send_goal(self.goal_pose_orient)
 
+        while not rospy.is_shutdown():
+            if self.check_status() == True:
+                self.client.cancel_goal()
+
+                if self.check_status(5) == True:
+
+                    return True
+                else:
+                    #Rotate slowly
+                    pass
+
+            elif self.client.get_goal_status_text() == "Goal reached.":
+                return False
+
+        return False  
+
+
+
+
+
+
+def main():
     rospy.init_node('QR_status_listener')
+
     waypoints = [  
         [(0.59, 0.7, 0.0), (0.0, 0.0, -0.01, -0.99)],
         [(-5.1, -2.03, 0.0), (0.0, 0.0, -0.9, 0.428)]
@@ -60,13 +91,17 @@ if __name__ == '__main__':
 
     for waypoint in waypoints:
         go_to_waypoint = GoToWaypoint(waypoint)
-        go_to_waypoint.main()
-        
-        if go_to_waypoint.main() == True:
+        found_QR = go_to_waypoint.execute2()
+
+        if found_QR == True:
             break
-        else:
-            print("Goal reached")
-            print("Next waypoint")
+        
+        print("Goal reached")
+        print("Next waypoint")
         
 
         rospy.sleep(3)
+    
+
+if __name__ == '__main__':
+    main()
