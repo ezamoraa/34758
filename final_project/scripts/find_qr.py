@@ -2,9 +2,8 @@
 
 import rospy
 import actionlib
-import math
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from std_msgs.msg import Int8, String
+from std_msgs.msg import String
 from geometry_msgs.msg import Twist
 
 waypoints = [  
@@ -56,8 +55,6 @@ def scan_for_qr():
         is_qr_stable = check_status(5)
         if is_qr_stable == True:
             print("qr is stable")
-            move.angular.z = 0
-            publish_move(move)
             return True
         else:
             print("qr is not stable")
@@ -77,9 +74,11 @@ def main():
     rospy.init_node('QR_status_listener')
     client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
     client.wait_for_server()
+
     for pose in waypoints:
         goal = goal_pose(pose)
         client.send_goal(goal)
+        
         found_qr = False
         while not client.get_goal_status_text() == "Goal reached." and found_qr == False:
             found_qr = check_status()
