@@ -39,6 +39,20 @@ def visp_detect_qr(times=1, timeout=2):
     return msg
 
 
+class QRInfo:
+    def __init__(self, qr_msg):
+        qr_msg = qr_msg.split("\r\n")
+
+        self.current_pos = tuple(float(x.split('=')[-1]) for x in qr_msg[:2])
+        self.next_pos = tuple(float(x.split('=')[-1]) for x in qr_msg[2:4])
+        self.secret_letter = qr_msg[5][-1]
+        self.qr_id = int(qr_msg[4][-1])
+        self.world_pose = None
+
+    def set_world_pose(pose):
+        self.world_pose = pose
+
+
 class QRSecretSolver:
     def __init__(self, init_waypoints):
         self.init_waypoints = init_waypoints
@@ -46,7 +60,8 @@ class QRSecretSolver:
         self.move_client = actionlib.SimpleActionClient('move_base', MoveBaseAction)
         self.move_client.wait_for_server()
 
-        self.qr_info = {}
+        self.qr_info_initial = {}
+        self.qr_info_all = {}
 
 
     def move_to_goal(self, pose):
@@ -61,10 +76,10 @@ class QRSecretSolver:
 
         while encoder < 6.15:
             rospy.loginfo('scanning')
-            is_qr_stable = visp_detect_qr(times=5)
-            if is_qr_stable:
+            qr_msg = visp_detect_qr(times=5)
+            if qr_msg:
                 rospy.logdebug("qr is stable")
-                return True
+                return qr_msg
 
             rospy.logdebug("qr is not stable")
             move.angular.z = angular_vel
@@ -76,7 +91,7 @@ class QRSecretSolver:
 
             encoder += angular_vel
 
-        return False
+        return None
 
 
     def wander_init_waypoints(self, qr_detect_cb):
@@ -113,16 +128,29 @@ class QRSecretSolver:
         # estimate the world pose from the camera information
 
         # Callback invoked when the wander init routine detects a QR
-        def initial_qr_detect_cb(qr_msg):
+        def initial_qr_detect_cb(detect_qr_msg):
             stop = False
 
+            detect_qr_info = QRInfo(detect_qr_msg.data)
+            self.qr_info_all[detect_qr_info.qr_id] = detect_qr_info
+
             # Scan area to find and lock QR
-            found_qr = self.scan_for_qr()
-            if found_qr:
+            scan_qr_msg = self.scan_for_qr()
+            if scan_qr_msg:
+                scan_qr_info = QRInfo(scan_qr_msg.data)
+                self.qr_info_all[scan_qr_info.qr_id] = scan_qr_info
+
                 # TODO: Find QR world pose
-                # If this is the second QR we should return true
-                # to stop wandering (do it right away for now)
-                stop = True
+                pose = None
+                info.set_world_pose(pose)
+
+                if scan_qr_info.qr_id not in self.qr_info_initial:
+                    # Have not seen this QR code
+                    self.qr_info_initial[scan_qr_info.qr_id] = scan_qr_info
+                    if len(self.qr_info_initial) == 2:
+                        # If this is the second QR we should return true
+                        # to stop wandering
+                        stop = True
 
             return stop
 
@@ -130,6 +158,13 @@ class QRSecretSolver:
 
 
     def find_remaining_qrs(self):
+        # TODO: Calculate the hidden frame
+        # TODO: Find remaining QR IDs
+        qr_ids = set(self.qr_info_all.keys())
+        remaining_ids = list(set(range(6))-qr_ids)
+        for qr_id in remaining_ids:
+            pass
+        #
         # TODO: Find the rest of the QRs from the QRs info after
         # solving the hidden frame from the first two QRs
         pass
