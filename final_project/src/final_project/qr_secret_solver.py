@@ -5,6 +5,7 @@ import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
+import math
 
 
 # Total number of QR codes to find
@@ -154,7 +155,20 @@ class QRSecretSolver:
 
     def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5):
         # TODO: Find waypoints in a circle around QR position
-        return []
+        pi = math.pi
+        way_points = []
+
+        points = np.linspace(0, 360, n)
+        radians = points * (pi / 180)
+
+        for _, rad in enumerate(radians):
+        
+            # Maybe round numbers
+            x = center[0] + radius * math.cos(rad)
+            y = center[1] + radius * math.sin(rad)
+            way_points.append((x, y))
+
+        return way_points
 
     def find_initial_qrs(self):
         # Find the first two QRs (at least). For these QRs we need to
