@@ -3,8 +3,9 @@
 import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
+from geometry_msgs.msg import Twist, PoseStamped
 from std_msgs.msg import String
-from geometry_msgs.msg import Twist
+import tf
 
 
 # Total number of QR codes to find
@@ -34,7 +35,7 @@ def publish_move(msg):
     pub.publish(msg)
 
 
-def visp_detect_qr(times=1, timeout=2, filter_dict=None):
+def visp_detect_qr(times=1, timeout=3, filter_dict=None):
     for _ in range(times):
         msg = rospy.wait_for_message('visp_auto_tracker/code_message', String, timeout)
         if msg is None or msg.data == '':
@@ -66,6 +67,11 @@ class QRSecretSolver:
 
         self.qr_info_initial = {}
         self.qr_info_all = {}
+
+        self.tl = tf.TransformListener()
+
+        self.world_frame = "map"
+        self.camera_frame = "camera_optical_link"
 
     def add_qr_info_all(self, qr_msg):
         qr_info = QRInfo(qr_msg.data)
@@ -138,10 +144,16 @@ class QRSecretSolver:
 
         raise Exception("Did not find the initial QRs while wandering!")
 
-    def get_qr_world_pose_from_camera(self):
-        # TODO: Find QR world pose
-        world_pose = None
-        return world_pose
+    def get_qr_world_pose_from_camera(self, timeout=3):
+        t = rospy.Time()
+        msg = rospy.wait_for_message('visp_auto_tracker/object_position', PoseStamped, timeout)
+        msg.header.frame_id = self.camera_frame
+        msg.header.stamp = t
+
+        self.tl.waitForTransform(self.camera_frame, self.world_frame, t, rospy.Duration(timeout))
+        wmsg = self.tl.transformPose(self.world_frame, msg)
+
+        return wmsg.pose
 
     def find_hidden_frame(self):
         # TODO: Calculate the hidden frame
