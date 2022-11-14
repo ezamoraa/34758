@@ -5,6 +5,8 @@ import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Twist, PoseStamped
 from std_msgs.msg import String
+import numpy as np
+import math
 import tf
 
 
@@ -164,9 +166,17 @@ class QRSecretSolver:
         world_pos = None
         return world_pos
 
-    def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5):
-        # TODO: Find waypoints in a circle around QR position
-        return []
+    def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5, radius=1):
+        angles = np.linspace(0, 2 * math.pi, num_waypoints)
+
+        waypoints = []
+        for angle in angles:
+            x = qr_world_pos.x + radius * math.cos(angle)
+            y = qr_world_pos.y + radius * math.sin(angle)
+            waypoint = [(x, y, 0), (0, 0, 0, 0)]
+            waypoints.append(waypoint)
+
+        return waypoints
 
     def find_initial_qrs(self):
         # Find the first two QRs (at least). For these QRs we need to
