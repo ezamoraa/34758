@@ -159,6 +159,21 @@ class QRSecretSolver:
 
     def find_hidden_frame(self):
         # TODO: Calculate the hidden frame
+        qrinfos = list(self.qr_info_initial.values())
+        hf0 = qrinfos[0].current_pos
+        hf1 = qrinfos[1].current_pos
+
+        wfpose0 = qrinfos[0].world_pose.position
+        wfpose1 = qrinfos[1].world_pose.position
+        wf0 = (wfpose0.x, wfpose0.y)
+        wf1 = (wfpose1.x, wfpose1.y)
+
+        
+        tf_yaw = 3.14
+        tf_x = 3
+        tf_y = 3
+        # Set up tf for hidden frame with above values relative to world frame
+
         pass
 
     def get_qr_world_pos_from_hidden(self, qr_hidden_pos):
