@@ -178,6 +178,8 @@ class QRSecretSolver:
         tf_y = transl_matrix[1]
         tf_yaw = -np.arcsin(rot_matrix[0,1])
 
+        rospy.loginfo("find_hidden_frame: x={}, y={}, yaw={}".format(tf_x, tf_y, tf_yaw))
+
         # Create a transform in the tf-tree
         self.br.sendTransform((tf_x, tf_y, 0),
                               tf.transformations.quaternion_from_euler(0, 0, tf_yaw),
@@ -195,6 +197,8 @@ class QRSecretSolver:
         self.tl.waitForTransform(self.hidden_frame, self.world_frame, t, rospy.Duration(timeout))
         wmsg = self.tl.transformPoint(self.world_frame, msg)
 
+        rospy.loginfo("get_qr_world_pos_from_hidden: hidden={}, world={}".format(msg.point, wmsg.point))
+
         return wmsg.point
 
     def get_qr_world_pose_from_camera(self, timeout=3):
@@ -206,17 +210,24 @@ class QRSecretSolver:
         self.tl.waitForTransform(self.camera_frame, self.world_frame, t, rospy.Duration(timeout))
         wmsg = self.tl.transformPose(self.world_frame, msg)
 
+        rospy.loginfo("get_qr_world_pos_from_camera: {}".format(wmsg.pose))
+
         return wmsg.pose
 
     def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5, radius=1):
         angles = np.linspace(0, 2 * math.pi, num_waypoints)
 
+        rospy.loginfo("get_waypoints_around_qr_world_camera: qr_world_pose={}".format(qr_world_pos))
+
         waypoints = []
         for angle in angles:
             x = qr_world_pos.x + radius * math.cos(angle)
             y = qr_world_pos.y + radius * math.sin(angle)
-            waypoint = [(x, y, 0), (0, 0, 0, 0)]
+            waypoint = [(x, y, 0), tf.transformations.quaternion_from_euler(0, 0, 0)]
             waypoints.append(waypoint)
+
+            rospy.loginfo("get_waypoints_around_qr_world_camera: waypoint={} (angle={})".
+                          format(waypoint, angle * (180.0 / math.pi)))
 
         return waypoints
 
@@ -224,6 +235,7 @@ class QRSecretSolver:
         # Find the first two QRs (at least). For these QRs we need to
         # properly stop the robot to estimate the world pose from the
         # camera
+        rospy.loginfo("find_initial_qrs: start")
 
         def initial_qr_detect_cb(detect_qr_msg):
             # Callback invoked when we detect a QR while wandering
@@ -275,6 +287,9 @@ class QRSecretSolver:
             yield qrs_to_find
 
     def find_remaining_qrs(self):
+
+        rospy.loginfo("find_remaining_qrs: start")
+
         # Find the rest of the QRs from the QRs info after
         # solving the hidden frame from the first two QRs
         for qrs_to_find in self.while_remaining_qrs_to_find():
