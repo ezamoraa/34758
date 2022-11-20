@@ -262,7 +262,7 @@ class QRSecretSolver:
             # Get QR IDs that we can find
             qrs_to_find = {}
             for qr_id in remaining_qr_ids:
-                prev_qr_id = (qr_id - 1 + NUM_QR_IDS) % NUM_QR_IDS
+                prev_qr_id = ((qr_id - 2 + NUM_QR_IDS) % NUM_QR_IDS) + 1
                 prev_qr_info = self.qr_info_all.get(prev_qr_id)
                 if prev_qr_info is not None:
                     qr_hidden_pos = prev_qr_info.next_pos
