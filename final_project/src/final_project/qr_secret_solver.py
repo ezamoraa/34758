@@ -89,7 +89,7 @@ class QRSecretSolver:
 
     def scan_for_qr(self, detect_times=5, qr_detect_filter_dict=None):
         move = Twist()
-        angular_vel = 0.2  # radians/sec
+        angular_vel = 0.4  # radians/sec
         encoder = 0
 
         while encoder < 6.15:
@@ -103,10 +103,10 @@ class QRSecretSolver:
             rospy.logdebug("qr is not stable")
             move.angular.z = angular_vel
             publish_move(move)
-            rospy.sleep(1.)
+            rospy.sleep(1)
             move.angular.z = 0
             publish_move(move)
-            rospy.sleep(2.)
+            rospy.sleep(0.5)
 
             encoder += angular_vel
 
@@ -142,6 +142,7 @@ class QRSecretSolver:
                     if stop:
                         return
                     # Resume last navigation goal
+                    rospy.loginfo("Resuming last move goal")
                     self.move_to_goal(pose)
 
             # We reached the waypoint
@@ -183,7 +184,7 @@ class QRSecretSolver:
         # Create a transform in the tf-tree
         self.br.sendTransform((tf_x, tf_y, 0),
                               tf.transformations.quaternion_from_euler(0, 0, tf_yaw),
-                              rospy.Time.now(),
+                              rospy.Time(),
                               self.hidden_frame,
                               self.world_frame)
 
@@ -294,6 +295,7 @@ class QRSecretSolver:
         # solving the hidden frame from the first two QRs
         for qrs_to_find in self.while_remaining_qrs_to_find():
             for qr_id, qr_world_pos in qrs_to_find.items():
+                rospy.loginfo("Searching for QR ID: {}".format(qr_id))
                 # We might have found this QR by chance while wandering. If so, skip it
                 if qr_id in self.qr_info_all:
                     continue
