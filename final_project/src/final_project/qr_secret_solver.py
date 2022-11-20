@@ -3,8 +3,11 @@
 import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import Twist, PoseStamped, PointStamped
+from actionlib_msgs.msg import GoalStatus
 from std_msgs.msg import String
+import numpy as np
+import math
 import tf
 
 
@@ -69,8 +72,10 @@ class QRSecretSolver:
         self.qr_info_all = {}
 
         self.tl = tf.TransformListener()
+        self.br = tf.TransformBroadcaster()
 
         self.world_frame = "map"
+        self.hidden_frame = "hidden"
         self.camera_frame = "camera_optical_link"
 
     def add_qr_info_all(self, qr_msg):
@@ -84,7 +89,7 @@ class QRSecretSolver:
 
     def scan_for_qr(self, detect_times=5, qr_detect_filter_dict=None):
         move = Twist()
-        angular_vel = 0.2  # radians/sec
+        angular_vel = 0.4  # radians/sec
         encoder = 0
 
         while encoder < 6.15:
@@ -98,10 +103,10 @@ class QRSecretSolver:
             rospy.logdebug("qr is not stable")
             move.angular.z = angular_vel
             publish_move(move)
-            rospy.sleep(1.)
+            rospy.sleep(1)
             move.angular.z = 0
             publish_move(move)
-            rospy.sleep(2.)
+            rospy.sleep(0.5)
 
             encoder += angular_vel
 
@@ -114,16 +119,18 @@ class QRSecretSolver:
         if not waypoints:
             return
 
-        move_goal_reached = (
-            lambda: self.move_client.get_goal_status_text() == "Goal reached."
-        )
+        def move_end():
+            state = self.move_client.get_state()
+            # The movement can end if it reaches to goal or aborts
+            return state in [GoalStatus.ABORTED, GoalStatus.SUCCEEDED]
+
         for pose in waypoints:
             rospy.loginfo("Navigate to waypoint pose: {}".format(pose))
             # Navigate to waypoint goal
             self.move_to_goal(pose)
 
             # While the robot is navigating towards the goal (async)
-            while not move_goal_reached():
+            while not move_end():
                 # Try to detect any QR code with the camera
                 qr_msg = visp_detect_qr(filter_dict=qr_detect_filter_dict)
                 if qr_msg is not None:
@@ -135,6 +142,7 @@ class QRSecretSolver:
                     if stop:
                         return
                     # Resume last navigation goal
+                    rospy.loginfo("Resuming last move goal")
                     self.move_to_goal(pose)
 
             # We reached the waypoint
@@ -143,6 +151,56 @@ class QRSecretSolver:
                 return
 
         raise Exception("Did not find the initial QRs while wandering!")
+
+    def find_hidden_frame(self):
+        # Get values from 2 QR points and the according 2 world frame points
+        qrinfos = list(self.qr_info_initial.values())
+        hf0 = list(qrinfos[0].current_pos)+[0]
+        hf1 = list(qrinfos[1].current_pos)+[0]
+        vec_hf = np.subtract(hf1, hf0)
+
+        wfpos0 = qrinfos[0].world_pose.position
+        wfpos1 = qrinfos[1].world_pose.position
+        wf0 = [wfpos0.x, wfpos0.y, 0]
+        wf1 = [wfpos1.x, wfpos1.y, 0]
+        vec_wf = np.subtract(wf1, wf0)
+
+        a = (vec_hf / np.linalg.norm(vec_hf)).reshape(3)
+        b = (vec_wf / np.linalg.norm(vec_wf)).reshape(3)
+        v = np.cross(a, b)
+        c = np.dot(a, b)
+        s = np.linalg.norm(v)
+
+        kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+        rot_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
+        transl_matrix = wf1 - np.dot(rot_matrix, hf1)
+
+        tf_x = transl_matrix[0]
+        tf_y = transl_matrix[1]
+        tf_yaw = -np.arcsin(rot_matrix[0,1])
+
+        rospy.loginfo("find_hidden_frame: x={}, y={}, yaw={}".format(tf_x, tf_y, tf_yaw))
+
+        # Create a transform in the tf-tree
+        self.br.sendTransform((tf_x, tf_y, 0),
+                              tf.transformations.quaternion_from_euler(0, 0, tf_yaw),
+                              rospy.Time(),
+                              self.hidden_frame,
+                              self.world_frame)
+
+    def get_qr_world_pos_from_hidden(self, qr_hidden_pos, timeout=3):
+        t = rospy.Time()
+        msg = PointStamped()
+        msg.header.frame_id = self.hidden_frame
+        msg.header.stamp = t
+        msg.point.x, msg.point.y = qr_hidden_pos
+
+        self.tl.waitForTransform(self.hidden_frame, self.world_frame, t, rospy.Duration(timeout))
+        wmsg = self.tl.transformPoint(self.world_frame, msg)
+
+        rospy.loginfo("get_qr_world_pos_from_hidden: hidden={}, world={}".format(msg.point, wmsg.point))
+
+        return wmsg.point
 
     def get_qr_world_pose_from_camera(self, timeout=3):
         t = rospy.Time()
@@ -153,25 +211,32 @@ class QRSecretSolver:
         self.tl.waitForTransform(self.camera_frame, self.world_frame, t, rospy.Duration(timeout))
         wmsg = self.tl.transformPose(self.world_frame, msg)
 
+        rospy.loginfo("get_qr_world_pos_from_camera: {}".format(wmsg.pose))
+
         return wmsg.pose
 
-    def find_hidden_frame(self):
-        # TODO: Calculate the hidden frame
-        pass
+    def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5, radius=1):
+        angles = np.linspace(0, 2 * math.pi, num_waypoints)
 
-    def get_qr_world_pos_from_hidden(self, qr_hidden_pos):
-        # TODO: Transform point from hidden to world frame
-        world_pos = None
-        return world_pos
+        rospy.loginfo("get_waypoints_around_qr_world_camera: qr_world_pose={}".format(qr_world_pos))
 
-    def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5):
-        # TODO: Find waypoints in a circle around QR position
-        return []
+        waypoints = []
+        for angle in angles:
+            x = qr_world_pos.x + radius * math.cos(angle)
+            y = qr_world_pos.y + radius * math.sin(angle)
+            waypoint = [(x, y, 0), tf.transformations.quaternion_from_euler(0, 0, 0)]
+            waypoints.append(waypoint)
+
+            rospy.loginfo("get_waypoints_around_qr_world_camera: waypoint={} (angle={})".
+                          format(waypoint, angle * (180.0 / math.pi)))
+
+        return waypoints
 
     def find_initial_qrs(self):
         # Find the first two QRs (at least). For these QRs we need to
         # properly stop the robot to estimate the world pose from the
         # camera
+        rospy.loginfo("find_initial_qrs: start")
 
         def initial_qr_detect_cb(detect_qr_msg):
             # Callback invoked when we detect a QR while wandering
@@ -213,7 +278,7 @@ class QRSecretSolver:
             # Get QR IDs that we can find
             qrs_to_find = {}
             for qr_id in remaining_qr_ids:
-                prev_qr_id = (qr_id - 1 + NUM_QR_IDS) % NUM_QR_IDS
+                prev_qr_id = ((qr_id - 2 + NUM_QR_IDS) % NUM_QR_IDS) + 1
                 prev_qr_info = self.qr_info_all.get(prev_qr_id)
                 if prev_qr_info is not None:
                     qr_hidden_pos = prev_qr_info.next_pos
@@ -223,10 +288,14 @@ class QRSecretSolver:
             yield qrs_to_find
 
     def find_remaining_qrs(self):
+
+        rospy.loginfo("find_remaining_qrs: start")
+
         # Find the rest of the QRs from the QRs info after
         # solving the hidden frame from the first two QRs
         for qrs_to_find in self.while_remaining_qrs_to_find():
             for qr_id, qr_world_pos in qrs_to_find.items():
+                rospy.loginfo("Searching for QR ID: {}".format(qr_id))
                 # We might have found this QR by chance while wandering. If so, skip it
                 if qr_id in self.qr_info_all:
                     continue
