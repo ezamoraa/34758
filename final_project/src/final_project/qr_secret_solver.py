@@ -3,7 +3,7 @@
 import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
-from geometry_msgs.msg import Twist, PoseStamped
+from geometry_msgs.msg import Twist, PoseStamped, PointStamped
 from std_msgs.msg import String
 import numpy as np
 import math
@@ -71,8 +71,10 @@ class QRSecretSolver:
         self.qr_info_all = {}
 
         self.tl = tf.TransformListener()
+        self.br = tf.TransformBroadcaster()
 
         self.world_frame = "map"
+        self.hidden_frame = "hidden"
         self.camera_frame = "camera_optical_link"
 
     def add_qr_info_all(self, qr_msg):
@@ -146,6 +148,52 @@ class QRSecretSolver:
 
         raise Exception("Did not find the initial QRs while wandering!")
 
+    def find_hidden_frame(self):
+        # Get values from 2 QR points and the according 2 world frame points
+        qrinfos = list(self.qr_info_initial.values())
+        hf0 = list(qrinfos[0].current_pos)+[0]
+        hf1 = list(qrinfos[1].current_pos)+[0]
+        vec_hf = np.subtract(hf1, hf0)
+
+        wfpos0 = qrinfos[0].world_pose.position
+        wfpos1 = qrinfos[1].world_pose.position
+        wf0 = [wfpos0.x, wfpos0.y, 0]
+        wf1 = [wfpos1.x, wfpos1.y, 0]
+        vec_wf = np.subtract(wf1, wf0)
+
+        a = (vec_hf / np.linalg.norm(vec_hf)).reshape(3)
+        b = (vec_wf / np.linalg.norm(vec_wf)).reshape(3)
+        v = np.cross(a, b)
+        c = np.dot(a, b)
+        s = np.linalg.norm(v)
+
+        kmat = np.array([[0, -v[2], v[1]], [v[2], 0, -v[0]], [-v[1], v[0], 0]])
+        rot_matrix = np.eye(3) + kmat + kmat.dot(kmat) * ((1 - c) / (s ** 2))
+        transl_matrix = wf1 - np.dot(rot_matrix, hf1)
+
+        tf_x = transl_matrix[0]
+        tf_y = transl_matrix[1]
+        tf_yaw = -np.arcsin(rot_matrix[0,1])
+
+        # Create a transform in the tf-tree
+        self.br.sendTransform((tf_x, tf_y, 0),
+                              tf.transformations.quaternion_from_euler(0, 0, tf_yaw),
+                              rospy.Time.now(),
+                              self.hidden_frame,
+                              self.world_frame)
+
+    def get_qr_world_pos_from_hidden(self, qr_hidden_pos, timeout=3):
+        t = rospy.Time()
+        msg = PointStamped()
+        msg.header.frame_id = self.hidden_frame
+        msg.header.stamp = t
+        msg.point.x, msg.point.y = qr_hidden_pos
+
+        self.tl.waitForTransform(self.hidden_frame, self.world_frame, t, rospy.Duration(timeout))
+        wmsg = self.tl.transformPoint(self.world_frame, msg)
+
+        return wmsg.point
+
     def get_qr_world_pose_from_camera(self, timeout=3):
         t = rospy.Time()
         msg = rospy.wait_for_message('visp_auto_tracker/object_position', PoseStamped, timeout)
@@ -156,30 +204,6 @@ class QRSecretSolver:
         wmsg = self.tl.transformPose(self.world_frame, msg)
 
         return wmsg.pose
-
-    def find_hidden_frame(self):
-        # TODO: Calculate the hidden frame
-        qrinfos = list(self.qr_info_initial.values())
-        hf0 = qrinfos[0].current_pos
-        hf1 = qrinfos[1].current_pos
-
-        wfpose0 = qrinfos[0].world_pose.position
-        wfpose1 = qrinfos[1].world_pose.position
-        wf0 = (wfpose0.x, wfpose0.y)
-        wf1 = (wfpose1.x, wfpose1.y)
-
-        
-        tf_yaw = 3.14
-        tf_x = 3
-        tf_y = 3
-        # Set up tf for hidden frame with above values relative to world frame
-
-        pass
-
-    def get_qr_world_pos_from_hidden(self, qr_hidden_pos):
-        # TODO: Transform point from hidden to world frame
-        world_pos = None
-        return world_pos
 
     def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5, radius=1):
         angles = np.linspace(0, 2 * math.pi, num_waypoints)
