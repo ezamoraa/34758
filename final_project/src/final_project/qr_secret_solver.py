@@ -4,6 +4,7 @@ import rospy
 import actionlib
 from move_base_msgs.msg import MoveBaseAction, MoveBaseGoal
 from geometry_msgs.msg import Twist, PoseStamped, PointStamped
+from actionlib_msgs.msg import GoalStatus
 from std_msgs.msg import String
 import numpy as np
 import math
@@ -118,16 +119,18 @@ class QRSecretSolver:
         if not waypoints:
             return
 
-        move_goal_reached = (
-            lambda: self.move_client.get_goal_status_text() == "Goal reached."
-        )
+        def move_end():
+            state = self.move_client.get_state()
+            # The movement can end if it reaches to goal or aborts
+            return state in [GoalStatus.ABORTED, GoalStatus.SUCCEEDED]
+
         for pose in waypoints:
             rospy.loginfo("Navigate to waypoint pose: {}".format(pose))
             # Navigate to waypoint goal
             self.move_to_goal(pose)
 
             # While the robot is navigating towards the goal (async)
-            while not move_goal_reached():
+            while not move_end():
                 # Try to detect any QR code with the camera
                 qr_msg = visp_detect_qr(filter_dict=qr_detect_filter_dict)
                 if qr_msg is not None:
