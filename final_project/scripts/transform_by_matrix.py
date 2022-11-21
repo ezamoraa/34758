@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 import numpy as np
 
-p1w = [2, 2, 0]
-p2w = [2, 4, 0]
+p1w = [-0.3, -1.8, 0]
+p2w = [-6.5, -2.6, 0]
 
-p1h = [1, 1, 0]
-p2h = [3, 1, 0]
+p1h = [-3.08, 1.95, 0]
+p2h = [2.67, 3.23, 0]
 
 
 def rotation_matrix_from_vectors(vec1, vec2):
@@ -35,9 +35,11 @@ print(mat)
 
 
 # Calculate hidden frame:
-angle_rad = -np.arcsin(mat[0,1])
+angle_rad = np.arctan2(mat[1,0],mat[0,0])
+
 angle_deg = angle_rad * 180 / np.pi
-print("Angle:", angle_rad)
+print("Angle rad:", angle_rad)
+print("Angle deg:", angle_deg)
 
 trans_mat = p1w - np.dot(mat, p1h)
 print(trans_mat, "Translation X:", trans_mat[0], "Translation Y:", trans_mat[1])
