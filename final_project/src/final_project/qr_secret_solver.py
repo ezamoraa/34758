@@ -89,11 +89,10 @@ class QRSecretSolver:
 
     def scan_for_qr(self, detect_times=5, qr_detect_filter_dict=None):
         move = Twist()
-        angular_vel = 0.4  # radians/sec
+        angular_vel = 0.3  # radians/sec
         encoder = 0
-
+        rospy.loginfo('scanning')
         while encoder < 6.15:
-            rospy.loginfo('scanning')
             qr_msg = visp_detect_qr(times=detect_times,
                                     filter_dict=qr_detect_filter_dict)
             if qr_msg:
@@ -106,7 +105,7 @@ class QRSecretSolver:
             rospy.sleep(1)
             move.angular.z = 0
             publish_move(move)
-            rospy.sleep(0.5)
+            rospy.sleep(1)
 
             encoder += angular_vel
 
@@ -136,6 +135,7 @@ class QRSecretSolver:
                 if qr_msg is not None:
                     # A valid message means we detected a QR at least once
                     self.move_client.cancel_all_goals()
+                    self.move_client.wait_for_result()
 
                     rospy.loginfo("Detected QR: msg={}".format(qr_msg))
                     stop = qr_detect_cb(qr_msg)
@@ -177,7 +177,7 @@ class QRSecretSolver:
 
         tf_x = transl_matrix[0]
         tf_y = transl_matrix[1]
-        tf_yaw = -np.arcsin(rot_matrix[0,1])
+        tf_yaw = np.arctan2(rot_matrix[1,0],rot_matrix[0,0])
 
         rospy.loginfo("find_hidden_frame: x={}, y={}, yaw={}".format(tf_x, tf_y, tf_yaw))
 
@@ -198,7 +198,7 @@ class QRSecretSolver:
         self.tl.waitForTransform(self.hidden_frame, self.world_frame, t, rospy.Duration(timeout))
         wmsg = self.tl.transformPoint(self.world_frame, msg)
 
-        rospy.loginfo("get_qr_world_pos_from_hidden: hidden={}, world={}".format(msg.point, wmsg.point))
+        rospy.logdebug("get_qr_world_pos_from_hidden: hidden={}, world={}".format(msg.point, wmsg.point))
 
         return wmsg.point
 
@@ -215,7 +215,7 @@ class QRSecretSolver:
 
         return wmsg.pose
 
-    def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5, radius=1):
+    def get_waypoints_around_qr_world_pos(self, qr_world_pos, num_waypoints=5, radius=0.75):
         angles = np.linspace(0, 2 * math.pi, num_waypoints)
 
         rospy.loginfo("get_waypoints_around_qr_world_camera: qr_world_pose={}".format(qr_world_pos))
@@ -227,8 +227,8 @@ class QRSecretSolver:
             waypoint = [(x, y, 0), tf.transformations.quaternion_from_euler(0, 0, 0)]
             waypoints.append(waypoint)
 
-            rospy.loginfo("get_waypoints_around_qr_world_camera: waypoint={} (angle={})".
-                          format(waypoint, angle * (180.0 / math.pi)))
+            rospy.logdebug("get_waypoints_around_qr_world_camera: waypoint={} (angle={})".
+                         format(waypoint, angle * (180.0 / math.pi)))
 
         return waypoints
 
@@ -248,6 +248,7 @@ class QRSecretSolver:
             # Scan area rotating robot to find and lock QR
             scan_qr_msg = self.scan_for_qr(qr_detect_filter_dict=self.qr_info_initial)
             if scan_qr_msg:
+                rospy.loginfo("Scanned QR: msg={}".format(scan_qr_msg))
                 scan_qr_info = self.add_qr_info_all(scan_qr_msg)
 
                 # Get QR code world pose from camera
